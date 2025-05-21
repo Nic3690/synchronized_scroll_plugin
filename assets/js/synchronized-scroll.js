@@ -59,26 +59,19 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function setupContainerStyles(container, innerContainer, scrollType) {
-        container.style.overflow = 'visible';
+        container.style.overflow = 'visible'; 
+        
+        innerContainer.style.willChange = 'transform';
+        innerContainer.style.transition = 'transform 0.1s ease-out';
         
         if (scrollType === 'horizontal') {
             innerContainer.style.display = 'flex';
             innerContainer.style.flexWrap = 'nowrap';
-            innerContainer.style.width = '300%';
-            innerContainer.style.willChange = 'transform';
-            innerContainer.style.transition = 'transform 0.1s ease-out';
             
             Array.from(innerContainer.children).forEach(function(child) {
                 child.style.flexShrink = '0';
                 child.style.width = 'auto';
             });
-        } else if (scrollType === 'vertical') {
-            innerContainer.style.height = '200%';
-            innerContainer.style.willChange = 'transform';
-            innerContainer.style.transition = 'transform 0.1s ease-out';
-        } else if (scrollType === 'parallax') {
-            innerContainer.style.willChange = 'transform';
-            innerContainer.style.transition = 'transform 0.1s ease-out';
         }
     }
     
@@ -86,30 +79,37 @@ document.addEventListener('DOMContentLoaded', function() {
         scrollContainers.forEach(function(item) {
             const rect = item.container.getBoundingClientRect();
             const windowHeight = window.innerHeight;
-            
+
             if (rect.top < windowHeight && rect.bottom > 0) {
                 const containerHeight = item.container.offsetHeight;
+                
                 const scrollProgress = Math.min(1, Math.max(0, 
                     (windowHeight - rect.top) / (containerHeight + windowHeight)
                 ));
                 
                 const directionFactor = item.reverse ? 1 : -1;
-                
+
                 if (item.type === 'horizontal') {
-                    const translateX = directionFactor * scrollProgress * item.scrollWidth * item.speed;
-                    item.innerContainer.style.transform = `translateX(${translateX}px)`;
+                    requestAnimationFrame(() => {
+                        const translateX = directionFactor * scrollProgress * item.scrollWidth * item.speed;
+                        item.innerContainer.style.transform = `translateX(${translateX}px)`;
+                    });
                 } else if (item.type === 'vertical') {
-                    const translateY = directionFactor * scrollProgress * item.scrollHeight * item.speed;
-                    item.innerContainer.style.transform = `translateY(${translateY}px)`;
+                    requestAnimationFrame(() => {
+                        const translateY = directionFactor * scrollProgress * item.scrollHeight * item.speed;
+                        item.innerContainer.style.transform = `translateY(${translateY}px)`;
+                    });
                 } else if (item.type === 'parallax') {
-                    const viewportCenter = windowHeight / 2;
-                    const elementCenter = rect.top + (containerHeight / 2);
-                    const distance = viewportCenter - elementCenter;
-                    const maxDistance = windowHeight + containerHeight;
-                    const parallaxProgress = distance / maxDistance * 2;
-                    
-                    const translateY = directionFactor * parallaxProgress * 100 * item.speed;
-                    item.innerContainer.style.transform = `translateY(${translateY}px)`;
+                    requestAnimationFrame(() => {
+                        const viewportCenter = windowHeight / 2;
+                        const elementCenter = rect.top + (containerHeight / 2);
+                        const distance = viewportCenter - elementCenter;
+                        const maxDistance = windowHeight + containerHeight;
+                        const parallaxProgress = distance / maxDistance * 2;
+                        
+                        const translateY = directionFactor * parallaxProgress * 100 * item.speed;
+                        item.innerContainer.style.transform = `translateY(${translateY}px)`;
+                    });
                 }
             }
         });

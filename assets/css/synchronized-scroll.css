@@ -5,7 +5,8 @@
 
 .sync-scroll-yes > .elementor-container,
 .sync-scroll-yes > .e-con-inner {
-    overflow: hidden !important;
+    will-change: transform;
+    transition: transform 0.1s ease-out;
 }
 
 .sync-scroll-sticky-yes {
@@ -18,7 +19,6 @@
 .sync-scroll-type-horizontal > .e-con-inner {
     display: flex !important;
     flex-wrap: nowrap !important;
-    width: 300% !important;
 }
 
 .sync-scroll-type-horizontal > .elementor-container > .elementor-column,
@@ -31,7 +31,6 @@
 
 @media (max-width: 767px) {
     .sync-scroll-yes {
-        overflow-x: auto !important;
-        -webkit-overflow-scrolling: touch;
+        overflow: visible !important;
     }
 }
