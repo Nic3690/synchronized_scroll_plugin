@@ -29,6 +29,18 @@
     width: auto !important;
 }
 
+/* Aggiungiamo stili specifici per lo scorrimento verticale */
+.sync-scroll-type-vertical > .elementor-container,
+.sync-scroll-type-vertical > .e-con-inner {
+    min-height: 100% !important;
+}
+
+/* Stili per parallax */
+.sync-scroll-type-parallax > .elementor-container,
+.sync-scroll-type-parallax > .e-con-inner {
+    min-height: 100% !important;
+}
+
 @media (max-width: 767px) {
     .sync-scroll-yes {
         overflow: visible !important;

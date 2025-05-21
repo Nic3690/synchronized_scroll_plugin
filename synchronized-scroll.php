@@ -46,6 +46,14 @@ final class Synchronized_Scroll_Extension {
         add_action('elementor/frontend/container/before_render', [$this, 'before_render']);
         add_action('elementor/frontend/section/after_render', [$this, 'after_render']);
         add_action('elementor/frontend/container/after_render', [$this, 'after_render']);
+        
+        // Aggiungiamo un'azione per il piè di pagina per garantire che il nostro codice JS sia caricato
+        add_action('wp_footer', [$this, 'debug_output'], 100);
+    }
+    
+    public function debug_output() {
+        // Questo aiuta a verificare se il plugin è attivo
+        echo "<!-- Synchronized Scroll Plugin Active -->";
     }
 
     public function admin_notice_missing_elementor() {
@@ -243,6 +251,9 @@ final class Synchronized_Scroll_Extension {
                     'enable_sync_scroll' => 'yes',
                     'sync_scroll_type' => 'horizontal',
                 ],
+                'selectors' => {
+                    '{{WRAPPER}} > .elementor-container, {{WRAPPER}} > .e-con-inner' => 'width: {{SIZE}}{{UNIT}} !important;',
+                },
             ]
         );
         
@@ -264,6 +275,46 @@ final class Synchronized_Scroll_Extension {
                 'condition' => [
                     'enable_sync_scroll' => 'yes',
                 ],
+                'selectors' => {
+                    '{{WRAPPER}} > .elementor-container, {{WRAPPER}} > .e-con-inner' => 'transition: transform {{SIZE}}s ease-out !important;',
+                },
+            ]
+        );
+        
+        $element->add_control(
+            'sync_scroll_content_height',
+            [
+                'label' => __('Content Height', 'sync-scroll-elementor'),
+                'type' => \Elementor\Controls_Manager::SLIDER,
+                'size_units' => ['%', 'px', 'vh'],
+                'range' => [
+                    '%' => [
+                        'min' => 100,
+                        'max' => 500,
+                        'step' => 10,
+                    ],
+                    'px' => [
+                        'min' => 100,
+                        'max' => 2000,
+                        'step' => 10,
+                    ],
+                    'vh' => [
+                        'min' => 100,
+                        'max' => 500,
+                        'step' => 10,
+                    ],
+                ],
+                'default' => [
+                    'unit' => '%',
+                    'size' => 200,
+                ],
+                'condition' => [
+                    'enable_sync_scroll' => 'yes',
+                    'sync_scroll_type' => 'vertical',
+                ],
+                'selectors' => {
+                    '{{WRAPPER}} > .elementor-container, {{WRAPPER}} > .e-con-inner' => 'height: {{SIZE}}{{UNIT}} !important;',
+                },
             ]
         );
         
@@ -277,17 +328,35 @@ final class Synchronized_Scroll_Extension {
             $element_type = $element->get_type();
             $element_id = $element->get_id();
             
+            // Aggiungi attributi dati al wrapper per JavaScript
+            $element->add_render_attribute('_wrapper', 'data-sync-scroll', 'true');
             $element->add_render_attribute('_wrapper', 'data-scroll-speed', $settings['sync_scroll_speed']['size']);
+            
+            if (isset($settings['sync_scroll_type'])) {
+                $element->add_render_attribute('_wrapper', 'data-scroll-type', $settings['sync_scroll_type']);
+            }
+            
+            if (isset($settings['sync_scroll_direction'])) {
+                $element->add_render_attribute('_wrapper', 'data-scroll-direction', $settings['sync_scroll_direction']);
+            }
             
             if (isset($settings['sync_scroll_container_width']['size']) && isset($settings['sync_scroll_container_width']['unit'])) {
                 $width = $settings['sync_scroll_container_width']['size'] . $settings['sync_scroll_container_width']['unit'];
                 $element->add_render_attribute('_wrapper', 'data-scroll-width', $width);
             }
             
+            if (isset($settings['sync_scroll_content_height']['size']) && isset($settings['sync_scroll_content_height']['unit'])) {
+                $height = $settings['sync_scroll_content_height']['size'] . $settings['sync_scroll_content_height']['unit'];
+                $element->add_render_attribute('_wrapper', 'data-scroll-height', $height);
+            }
+            
             if (isset($settings['sync_scroll_transition']['size'])) {
                 $transition = $settings['sync_scroll_transition']['size'];
                 $element->add_render_attribute('_wrapper', 'data-scroll-transition', $transition);
             }
+            
+            // Aggiungiamo una classe CSS specifica per assicurarci che venga selezionata
+            $element->add_render_attribute('_wrapper', 'class', 'sync-scroll-element');
         }
     }
 
