@@ -1,5 +1,5 @@
 .sync-scroll-yes {
-    overflow: visible !important;
+    overflow: hidden !important; /* Cambiato da visible a hidden */
     position: relative;
 }
 
@@ -15,12 +15,27 @@
     z-index: 10;
 }
 
+/* Stile per il wrapper creato dinamicamente */
+.sync-scroll-wrapper {
+    will-change: transform;
+    transition: transform 0.1s ease-out;
+}
+
+/* Stili per la direzione orizzontale */
+.sync-scroll-type-horizontal .sync-scroll-wrapper {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    position: relative;
+}
+
 .sync-scroll-type-horizontal > .elementor-container,
 .sync-scroll-type-horizontal > .e-con-inner {
     display: flex !important;
     flex-wrap: nowrap !important;
 }
 
+/* Assicuriamoci che i figli non si restringano */
+.sync-scroll-type-horizontal .sync-scroll-wrapper > *,
 .sync-scroll-type-horizontal > .elementor-container > .elementor-column,
 .sync-scroll-type-horizontal > .elementor-container > .elementor-widget,
 .sync-scroll-type-horizontal > .e-con-inner > .e-con,
@@ -29,20 +44,16 @@
     width: auto !important;
 }
 
-/* Aggiungiamo stili specifici per lo scorrimento verticale */
-.sync-scroll-type-vertical > .elementor-container,
-.sync-scroll-type-vertical > .e-con-inner {
-    min-height: 100% !important;
+/* Stili per la direzione verticale e parallax */
+.sync-scroll-type-vertical .sync-scroll-wrapper,
+.sync-scroll-type-parallax .sync-scroll-wrapper {
+    position: relative;
+    min-height: 200%; /* Altezza minima per permettere lo scorrimento */
 }
 
-/* Stili per parallax */
-.sync-scroll-type-parallax > .elementor-container,
-.sync-scroll-type-parallax > .e-con-inner {
-    min-height: 100% !important;
-}
-
+/* Stili responsive */
 @media (max-width: 767px) {
     .sync-scroll-yes {
-        overflow: visible !important;
+        overflow: hidden !important;
     }
 }

@@ -251,9 +251,9 @@ final class Synchronized_Scroll_Extension {
                     'enable_sync_scroll' => 'yes',
                     'sync_scroll_type' => 'horizontal',
                 ],
-                'selectors' => {
+                'selectors' => [
                     '{{WRAPPER}} > .elementor-container, {{WRAPPER}} > .e-con-inner' => 'width: {{SIZE}}{{UNIT}} !important;',
-                },
+                ],
             ]
         );
         
@@ -275,9 +275,9 @@ final class Synchronized_Scroll_Extension {
                 'condition' => [
                     'enable_sync_scroll' => 'yes',
                 ],
-                'selectors' => {
+                'selectors' => [
                     '{{WRAPPER}} > .elementor-container, {{WRAPPER}} > .e-con-inner' => 'transition: transform {{SIZE}}s ease-out !important;',
-                },
+                ],
             ]
         );
         
@@ -312,9 +312,9 @@ final class Synchronized_Scroll_Extension {
                     'enable_sync_scroll' => 'yes',
                     'sync_scroll_type' => 'vertical',
                 ],
-                'selectors' => {
+                'selectors' => [
                     '{{WRAPPER}} > .elementor-container, {{WRAPPER}} > .e-con-inner' => 'height: {{SIZE}}{{UNIT}} !important;',
-                },
+                ],
             ]
         );
         
