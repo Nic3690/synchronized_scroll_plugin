@@ -1,249 +1,524 @@
 <?php
 /**
- * Plugin Name: Synchronized Scroll
+ * Plugin Name: Synchronized Scroll for Elementor
  * Plugin URI: https://example.com/synchronized-scroll
- * Description: Plugin che permette di creare container con scorrimento sincronizzato verticale e orizzontale, con integrazione Elementor
- * Version: 1.1.0
- * Author: Il tuo nome
+ * Description: Add synchronized scroll behaviors to any Elementor container
+ * Version: 1.0.0
+ * Author: Your Name
  * Author URI: https://example.com
- * Text Domain: synchronized-scroll
+ * Text Domain: sync-scroll-elementor
  */
 
-// Impedisce l'accesso diretto al file
+
 if (!defined('ABSPATH')) {
     exit;
 }
 
-// Percorso del plugin
-define('SYNC_SCROLL_PATH', plugin_dir_path(__FILE__));
+define('SYNC_SCROLL_VERSION', '1.0.0');
 define('SYNC_SCROLL_URL', plugin_dir_url(__FILE__));
+define('SYNC_SCROLL_PATH', plugin_dir_path(__FILE__));
 
-class Synchronized_Scroll {
-    
-    /**
-     * Costruttore - Inizializza il plugin
-     */
-    public function __construct() {
-        // Registra lo shortcode [synchronized_scroll]
-        add_shortcode('synchronized_scroll', array($this, 'synchronized_scroll_shortcode'));
-        add_shortcode('vertical_content', array($this, 'vertical_content_shortcode'));
-        add_shortcode('horizontal_content', array($this, 'horizontal_content_shortcode'));
-        
-        // Carica CSS e JS
-        add_action('wp_enqueue_scripts', array($this, 'enqueue_scripts'));
-        
-        // Integrazione con Elementor
-        add_action('elementor/widgets/widgets_registered', array($this, 'register_elementor_widgets'));
-        add_action('elementor/elements/categories_registered', array($this, 'add_elementor_widget_category'));
+
+final class Synchronized_Scroll_Extension {
+
+    private static $_instance = null;
+    public static function instance() {
+        if (is_null(self::$_instance)) {
+            self::$_instance = new self();
+        }
+        return self::$_instance;
     }
-    
-    /**
-     * Registra e carica CSS e JavaScript
-     */
-    public function enqueue_scripts() {
-        // Registra e carica lo stile CSS
-        wp_enqueue_style(
-            'synchronized-scroll-css',
-            SYNC_SCROLL_URL . 'assets/css/synchronized-scroll.css',
-            array(),
-            '1.1.0'
+
+    public function __construct() {
+        add_action('plugins_loaded', [$this, 'init_plugin']);
+    }
+
+    public function init_plugin() {
+        if (!did_action('elementor/loaded')) {
+            add_action('admin_notices', [$this, 'admin_notice_missing_elementor']);
+            return;
+        }
+
+        add_action('wp_enqueue_scripts', [$this, 'register_scripts']);
+        add_action('elementor/element/section/section_layout/after_section_end', [$this, 'register_controls'], 10, 2);
+        add_action('elementor/element/container/section_layout/after_section_end', [$this, 'register_controls'], 10, 2);
+
+        add_action('elementor/frontend/section/before_render', [$this, 'before_render']);
+        add_action('elementor/frontend/container/before_render', [$this, 'before_render']);
+        add_action('elementor/frontend/section/after_render', [$this, 'after_render']);
+        add_action('elementor/frontend/container/after_render', [$this, 'after_render']);
+
+        add_action('wp_footer', [$this, 'add_custom_script']);
+    }
+
+    public function admin_notice_missing_elementor() {
+        if (isset($_GET['activate'])) {
+            unset($_GET['activate']);
+        }
+
+        $message = sprintf(
+            esc_html__('"%1$s" requires "%2$s" to be installed and activated.', 'sync-scroll-elementor'),
+            '<strong>' . esc_html__('Synchronized Scroll for Elementor', 'sync-scroll-elementor') . '</strong>',
+            '<strong>' . esc_html__('Elementor', 'sync-scroll-elementor') . '</strong>'
         );
-        
-        // Registra e carica lo script JavaScript
-        wp_enqueue_script(
-            'synchronized-scroll-js',
-            SYNC_SCROLL_URL . 'assets/js/synchronized-scroll.js',
-            array('jquery'),
-            '1.1.0',
+
+        printf('<div class="notice notice-warning is-dismissible"><p>%1$s</p></div>', $message);
+    }
+
+    public function register_scripts() {
+        wp_register_style(
+            'sync-scroll-elementor-css',
+            SYNC_SCROLL_URL . 'assets/css/sync-scroll.css',
+            [],
+            SYNC_SCROLL_VERSION
+        );
+
+        wp_register_script(
+            'sync-scroll-elementor-js',
+            SYNC_SCROLL_URL . 'assets/js/sync-scroll.js',
+            ['jquery'],
+            SYNC_SCROLL_VERSION,
             true
         );
+        
+        wp_enqueue_style('sync-scroll-elementor-css');
+        wp_enqueue_script('sync-scroll-elementor-js');
     }
-    
-    /**
-     * Shortcode per il contenuto verticale
-     */
-    public function vertical_content_shortcode($atts, $content = null) {
-        return '<div class="vertical-content-inner">' . do_shortcode($content) . '</div>';
-    }
-    
-    /**
-     * Shortcode per il contenuto orizzontale
-     */
-    public function horizontal_content_shortcode($atts, $content = null) {
-        return '<div class="horizontal-content-inner">' . do_shortcode($content) . '</div>';
-    }
-    
-    /**
-     * Shortcode per inserire i container di scorrimento sincronizzato
-     */
-    public function synchronized_scroll_shortcode($atts, $content = null) {
-        // Attributi dello shortcode con valori predefiniti
-        $attributes = shortcode_atts(
-            array(
-                'vertical_height' => '50vh',      // Altezza del container verticale
-                'horizontal_height' => '50vh',    // Altezza del container orizzontale
-                'mobile_height' => '400px',       // Altezza su mobile
-                'breakpoint' => '769px',          // Breakpoint per il cambio a mobile
-                'horizontal_width' => '300%',     // Larghezza del contenuto orizzontale
-                'v_direction' => 'down',          // Direzione scorrimento verticale (up, down)
-                'h_direction' => 'right',         // Direzione scorrimento orizzontale (left, right)
-                'scroll_speed' => '1.0',          // Velocità di scorrimento (moltiplicatore)
-                'transition' => '0.05s'           // Durata della transizione per l'effetto smooth
-            ),
-            $atts
-        );
-        
-        // Carica CSS e JS necessari (assicuriamo che siano caricati)
-        if (!wp_script_is('synchronized-scroll-js', 'enqueued')) {
-            wp_enqueue_style('synchronized-scroll-css');
-            wp_enqueue_script('synchronized-scroll-js');
-        }
-        
-        // Genera un ID unico per questa istanza
-        $unique_id = 'sync-scroll-' . uniqid();
-        
-        // Utilizziamo preg_match_all per estrarre contenuti dagli shortcode nidificati
-        $vertical_content = '';
-        if (preg_match_all('/\[vertical_content\](.*?)\[\/vertical_content\]/is', $content, $vert_matches)) {
-            $vertical_content = '<div class="vertical-content-inner">' . do_shortcode($vert_matches[1][0]) . '</div>';
-        } else {
-            $vertical_content = $this->get_default_vertical_content();
-        }
-        
-        $horizontal_content = '';
-        if (preg_match_all('/\[horizontal_content\](.*?)\[\/horizontal_content\]/is', $content, $horiz_matches)) {
-            $horizontal_content = '<div class="horizontal-content-inner">' . do_shortcode($horiz_matches[1][0]) . '</div>';
-        } else {
-            $horizontal_content = $this->get_default_horizontal_content();
-        }
-        
-        // CSS inline per applicare le altezze personalizzate
-        $custom_css = '<style>
-            #' . $unique_id . ' {
-                height: 100vh;
-                width: 100%;
-                overflow-y: scroll;
-                position: relative;
-            }
-            #' . $unique_id . ' .sync-vertical-container {
-                height: ' . esc_attr($attributes['vertical_height']) . ';
-            }
-            #' . $unique_id . ' .sync-horizontal-container {
-                height: ' . esc_attr($attributes['horizontal_height']) . ';
-            }
-            #' . $unique_id . ' .sync-vertical-content,
-            #' . $unique_id . ' .sync-horizontal-content {
-                transition: transform ' . esc_attr($attributes['transition']) . ' ease-out;
-            }
-            #' . $unique_id . ' .sync-horizontal-content {
-                width: ' . esc_attr($attributes['horizontal_width']) . ';
-            }
-            @media (max-width: ' . esc_attr($attributes['breakpoint']) . ') {
-                #' . $unique_id . ' .sync-vertical-container {
-                    height: ' . esc_attr($attributes['mobile_height']) . ';
-                }
-                #' . $unique_id . ' .sync-horizontal-container {
-                    height: calc(100vh - ' . esc_attr($attributes['mobile_height']) . ');
-                }
-            }
-        </style>';
-        
-        // Aggiungi attributi data per JavaScript
-        $data_attributes = 'data-v-direction="' . esc_attr($attributes['v_direction']) . '" 
-                           data-h-direction="' . esc_attr($attributes['h_direction']) . '"
-                           data-scroll-speed="' . esc_attr($attributes['scroll_speed']) . '"';
-        
-        // Output HTML
-        $output = $custom_css . '
-        <div class="sync-scroll-container" id="' . esc_attr($unique_id) . '" ' . $data_attributes . '>
-            <div class="sync-vertical-container">
-                <div class="sync-vertical-content">
-                    ' . $vertical_content . '
-                </div>
-            </div>
-            
-            <div class="sync-horizontal-container">
-                <div class="sync-horizontal-content">
-                    ' . $horizontal_content . '
-                </div>
-            </div>
-        </div>';
-        
-        return $output;
-    }
-    
-    /**
-     * Contenuto verticale predefinito
-     */
-    private function get_default_vertical_content() {
-        return '
-        <div class="vertical-content-inner">
-            <h2>Contenuto Verticale</h2>
-            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-            <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-            <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
-            <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua.</p>
-            <p>Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.</p>
-            <p>Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.</p>
-            <p>Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.</p>
-        </div>';
-    }
-    
-    /**
-     * Contenuto orizzontale predefinito
-     */
-    private function get_default_horizontal_content() {
-        return '
-        <div class="horizontal-content-inner">
-            <div class="item">
-                <h3>Elemento 1</h3>
-                <p>Descrizione elemento 1</p>
-            </div>
-            <div class="item">
-                <h3>Elemento 2</h3>
-                <p>Descrizione elemento 2</p>
-            </div>
-            <div class="item">
-                <h3>Elemento 3</h3>
-                <p>Descrizione elemento 3</p>
-            </div>
-            <div class="item">
-                <h3>Elemento 4</h3>
-                <p>Descrizione elemento 4</p>
-            </div>
-            <div class="item">
-                <h3>Elemento 5</h3>
-                <p>Descrizione elemento 5</p>
-            </div>
-        </div>';
-    }
-    
-    /**
-     * Aggiunge categoria widget per Elementor
-     */
-    public function add_elementor_widget_category($elements_manager) {
-        $elements_manager->add_category(
-            'synchronized-scroll',
+
+    public function register_controls($element, $section_id) {
+        $element->start_controls_section(
+            'section_sync_scroll',
             [
-                'title' => __('Synchronized Scroll', 'synchronized-scroll'),
-                'icon' => 'fa fa-arrows-alt',
+                'label' => __('Synchronized Scroll', 'sync-scroll-elementor'),
+                'tab' => \Elementor\Controls_Manager::TAB_LAYOUT,
             ]
         );
+
+        $element->add_control(
+            'enable_sync_scroll',
+            [
+                'label' => __('Enable Synchronized Scroll', 'sync-scroll-elementor'),
+                'type' => \Elementor\Controls_Manager::SWITCHER,
+                'default' => '',
+                'label_on' => __('Yes', 'sync-scroll-elementor'),
+                'label_off' => __('No', 'sync-scroll-elementor'),
+                'return_value' => 'yes',
+                'prefix_class' => 'sync-scroll-',
+            ]
+        );
+        
+        $element->add_control(
+            'sync_scroll_type',
+            [
+                'label' => __('Scroll Type', 'sync-scroll-elementor'),
+                'type' => \Elementor\Controls_Manager::SELECT,
+                'default' => 'horizontal',
+                'options' => [
+                    'horizontal' => __('Horizontal', 'sync-scroll-elementor'),
+                    'vertical' => __('Vertical', 'sync-scroll-elementor'),
+                    'parallax' => __('Parallax', 'sync-scroll-elementor'),
+                ],
+                'condition' => [
+                    'enable_sync_scroll' => 'yes',
+                ],
+                'prefix_class' => 'sync-scroll-type-',
+            ]
+        );
+        
+        $element->add_control(
+            'sync_scroll_direction',
+            [
+                'label' => __('Scroll Direction', 'sync-scroll-elementor'),
+                'type' => \Elementor\Controls_Manager::SELECT,
+                'default' => 'normal',
+                'options' => [
+                    'normal' => __('Normal', 'sync-scroll-elementor'),
+                    'reverse' => __('Reverse', 'sync-scroll-elementor'),
+                ],
+                'condition' => [
+                    'enable_sync_scroll' => 'yes',
+                ],
+                'prefix_class' => 'sync-scroll-direction-',
+            ]
+        );
+        
+        $element->add_control(
+            'sync_scroll_speed',
+            [
+                'label' => __('Scroll Speed', 'sync-scroll-elementor'),
+                'type' => \Elementor\Controls_Manager::SLIDER,
+                'range' => [
+                    'px' => [
+                        'min' => 0.1,
+                        'max' => 10,
+                        'step' => 0.1,
+                    ],
+                ],
+                'default' => [
+                    'size' => 1,
+                ],
+                'condition' => [
+                    'enable_sync_scroll' => 'yes',
+                ],
+                'selectors' => [
+                    '{{WRAPPER}}' => '--sync-scroll-speed: {{SIZE}};',
+                ],
+            ]
+        );
+        
+        $element->add_control(
+            'sync_scroll_sticky',
+            [
+                'label' => __('Make Section Sticky', 'sync-scroll-elementor'),
+                'type' => \Elementor\Controls_Manager::SWITCHER,
+                'default' => '',
+                'label_on' => __('Yes', 'sync-scroll-elementor'),
+                'label_off' => __('No', 'sync-scroll-elementor'),
+                'return_value' => 'yes',
+                'condition' => [
+                    'enable_sync_scroll' => 'yes',
+                ],
+                'prefix_class' => 'sync-scroll-sticky-',
+            ]
+        );
+        
+        $element->add_control(
+            'sync_scroll_overflow',
+            [
+                'label' => __('Overflow', 'sync-scroll-elementor'),
+                'type' => \Elementor\Controls_Manager::SELECT,
+                'default' => 'hidden',
+                'options' => [
+                    'visible' => __('Visible', 'sync-scroll-elementor'),
+                    'hidden' => __('Hidden', 'sync-scroll-elementor'),
+                ],
+                'condition' => [
+                    'enable_sync_scroll' => 'yes',
+                ],
+                'selectors' => [
+                    '{{WRAPPER}}' => 'overflow-x: {{VALUE}} !important;',
+                ],
+            ]
+        );
+        
+        $element->add_control(
+            'sync_scroll_height',
+            [
+                'label' => __('Section Height', 'sync-scroll-elementor'),
+                'type' => \Elementor\Controls_Manager::SLIDER,
+                'size_units' => ['px', 'vh', '%'],
+                'range' => [
+                    'px' => [
+                        'min' => 100,
+                        'max' => 2000,
+                        'step' => 10,
+                    ],
+                    'vh' => [
+                        'min' => 10,
+                        'max' => 200,
+                        'step' => 10,
+                    ],
+                    '%' => [
+                        'min' => 10,
+                        'max' => 200,
+                        'step' => 10,
+                    ],
+                ],
+                'default' => [
+                    'unit' => 'vh',
+                    'size' => 100,
+                ],
+                'condition' => [
+                    'enable_sync_scroll' => 'yes',
+                ],
+                'selectors' => [
+                    '{{WRAPPER}}' => 'height: {{SIZE}}{{UNIT}} !important;',
+                ],
+            ]
+        );
+        
+        $element->add_control(
+            'sync_scroll_container_width',
+            [
+                'label' => __('Content Width', 'sync-scroll-elementor'),
+                'type' => \Elementor\Controls_Manager::SLIDER,
+                'size_units' => ['%', 'px', 'vw'],
+                'range' => [
+                    '%' => [
+                        'min' => 100,
+                        'max' => 500,
+                        'step' => 10,
+                    ],
+                    'px' => [
+                        'min' => 500,
+                        'max' => 5000,
+                        'step' => 100,
+                    ],
+                    'vw' => [
+                        'min' => 100,
+                        'max' => 500,
+                        'step' => 10,
+                    ],
+                ],
+                'default' => [
+                    'unit' => '%',
+                    'size' => 200,
+                ],
+                'condition' => [
+                    'enable_sync_scroll' => 'yes',
+                    'sync_scroll_type' => 'horizontal',
+                ],
+            ]
+        );
+        
+        $element->add_control(
+            'sync_scroll_transition',
+            [
+                'label' => __('Transition Duration (seconds)', 'sync-scroll-elementor'),
+                'type' => \Elementor\Controls_Manager::SLIDER,
+                'range' => [
+                    'px' => [
+                        'min' => 0,
+                        'max' => 2,
+                        'step' => 0.05,
+                    ],
+                ],
+                'default' => [
+                    'size' => 0.2,
+                ],
+                'condition' => [
+                    'enable_sync_scroll' => 'yes',
+                ],
+                'selectors' => [
+                    '{{WRAPPER}} .elementor-container, {{WRAPPER}} .elementor-widget-wrap' => 'transition: transform {{SIZE}}s ease-out;',
+                ],
+            ]
+        );
+        
+        $element->end_controls_section();
     }
-    
-    /**
-     * Registra widget Elementor
-     */
-    public function register_elementor_widgets() {
-        // Richiede il file del widget solo se Elementor è attivo
-        if (did_action('elementor/loaded')) {
-            require_once(SYNC_SCROLL_PATH . 'elementor/widgets/synchronized-scroll-widget.php');
-            \Elementor\Plugin::instance()->widgets_manager->register_widget_type(new \Synchronized_Scroll_Widget());
+
+
+    public function before_render($element) {
+        $settings = $element->get_settings_for_display();
+        
+        if ('yes' === $settings['enable_sync_scroll']) {
+            $element_type = $element->get_type();
+            $element_id = $element->get_id();
+
+            $element->add_render_attribute('_wrapper', 'class', 'sync-scroll-container-parent');
+            $element->add_render_attribute('_wrapper', 'id', 'sync-scroll-parent-' . $element_id);
+            
+            if ($element_type === 'section') {
+                $element->add_render_attribute('_wrapper', 'data-sync-scroll-id', $element_id);
+                $element->add_render_attribute('_wrapper', 'data-sync-scroll-type', $settings['sync_scroll_type']);
+                $element->add_render_attribute('_wrapper', 'data-sync-scroll-direction', $settings['sync_scroll_direction']);
+                $element->add_render_attribute('_wrapper', 'data-sync-scroll-speed', $settings['sync_scroll_speed']['size']);
+                
+                if ('yes' === $settings['sync_scroll_sticky']) {
+                    $element->add_render_attribute('_wrapper', 'class', 'sync-scroll-sticky-section');
+                }
+
+                if ('horizontal' === $settings['sync_scroll_type']) {
+                    $width = isset($settings['sync_scroll_container_width']['size']) ? $settings['sync_scroll_container_width']['size'] : 200;
+                    $unit = isset($settings['sync_scroll_container_width']['unit']) ? $settings['sync_scroll_container_width']['unit'] : '%';
+                    $element->add_render_attribute('_wrapper', 'data-sync-scroll-width', $width . $unit);
+                }
+            }
+
+            if ('horizontal' === $settings['sync_scroll_type']) {
+                echo '<div class="sync-scroll-overflow-wrapper">';
+            }
         }
+    }
+
+    public function after_render($element) {
+        $settings = $element->get_settings_for_display();
+        
+        if ('yes' === $settings['enable_sync_scroll']) {
+            if ('horizontal' === $settings['sync_scroll_type']) {
+                echo '</div>';
+            }
+
+            $element_id = $element->get_id();
+            ?>
+            <script>
+                (function($) {
+                    $(document).ready(function() {
+                        if (typeof initSyncScroll === 'function') {
+                            initSyncScroll('#sync-scroll-parent-<?php echo esc_js($element_id); ?>');
+                        }
+                    });
+                })(jQuery);
+            </script>
+            <?php
+        }
+    }
+
+    public function add_custom_script() {
+        ?>
+        <script>
+        </script>
+        <?php
     }
 }
 
-// Inizializza il plugin
-$synchronized_scroll = new Synchronized_Scroll();
-?>
+Synchronized_Scroll_Extension::instance();
+
+function synchronized_scroll_extension_activate() {
+    if (!file_exists(plugin_dir_path(__FILE__) . 'assets')) {
+        mkdir(plugin_dir_path(__FILE__) . 'assets', 0755);
+    }
+
+    if (!file_exists(plugin_dir_path(__FILE__) . 'assets/css')) {
+        mkdir(plugin_dir_path(__FILE__) . 'assets/css', 0755);
+    }
+
+    if (!file_exists(plugin_dir_path(__FILE__) . 'assets/js')) {
+        mkdir(plugin_dir_path(__FILE__) . 'assets/js', 0755);
+    }
+
+    $css_file = plugin_dir_path(__FILE__) . 'assets/css/sync-scroll.css';
+    if (!file_exists($css_file)) {
+        $css_content = <<<CSS
+
+.sync-scroll-container-parent {
+    position: relative;
+    overflow: hidden;
+}
+
+.sync-scroll-overflow-wrapper {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+.sync-scroll-type-horizontal .elementor-container,
+.sync-scroll-type-horizontal .elementor-widget-wrap {
+    will-change: transform;
+    transition: transform 0.2s ease-out;
+}
+
+.sync-scroll-type-vertical .elementor-container,
+.sync-scroll-type-vertical .elementor-widget-wrap {
+    will-change: transform;
+    transition: transform 0.2s ease-out;
+}
+
+.sync-scroll-type-parallax .elementor-container,
+.sync-scroll-type-parallax .elementor-widget-wrap {
+    will-change: transform;
+    transition: transform 0.2s ease-out;
+}
+
+.sync-scroll-sticky-yes {
+    position: sticky;
+    top: 0;
+}
+
+@media (max-width: 767px) {
+    .sync-scroll-container-parent {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+    }
+}
+CSS;
+        file_put_contents($css_file, $css_content);
+    }
+
+    $js_file = plugin_dir_path(__FILE__) . 'assets/js/sync-scroll.js';
+    if (!file_exists($js_file)) {
+        $js_content = <<<JS
+(function($) {
+    'use strict';
+
+    $(document).ready(function() {
+        $('.sync-scroll-container-parent').each(function() {
+            initSyncScroll($(this));
+        });
+    });
+
+    window.initSyncScroll = function(selector) {
+        const \$parent = $(selector);
+        if (\$parent.length === 0) return;
+        
+        const elementId = \$parent.data('sync-scroll-id');
+        const scrollType = \$parent.data('sync-scroll-type') || 'horizontal';
+        const scrollDirection = \$parent.data('sync-scroll-direction') || 'normal';
+        const scrollSpeed = parseFloat(\$parent.data('sync-scroll-speed')) || 1.0;
+        const contentWidth = \$parent.data('sync-scroll-width');
+        
+        console.log('Initializing sync scroll for', elementId, 'with type', scrollType);
+
+        const \$container = \$parent.find('.elementor-container, .elementor-widget-wrap').first();
+        if (\$container.length === 0) {
+            console.error('Container element not found in', elementId);
+            return;
+        }
+
+        if (scrollType === 'horizontal' && contentWidth) {
+            \$container.css('width', contentWidth);
+            \$container.css('display', 'flex');
+            \$container.css('flex-wrap', 'nowrap');
+
+            \$container.find('.elementor-column, .elementor-widget').css({
+                'flex-shrink': '0',
+                'width': 'auto'
+            });
+        }
+
+        const originalTransform = \$container.css('transform');
+
+        const parentHeight = \$parent.outerHeight();
+        const containerWidth = \$container.outerWidth();
+        const viewportWidth = window.innerWidth;
+        const maxScroll = containerWidth - viewportWidth;
+
+        const directionFactor = scrollDirection === 'reverse' ? -1 : 1;
+
+        function handleScroll() {
+            const rect = \$parent[0].getBoundingClientRect();
+            const viewportHeight = window.innerHeight;
+
+            if (rect.top < viewportHeight && rect.bottom > 0) {
+                const totalScrollableDistance = parentHeight + viewportHeight;
+                const scrollProgress = (viewportHeight - rect.top) / totalScrollableDistance;
+                const clampedProgress = Math.max(0, Math.min(scrollProgress, 1));
+
+                if (scrollType === 'horizontal') {
+                    const translateX = -maxScroll * clampedProgress * scrollSpeed * directionFactor;
+                    \$container.css('transform', 'translateX(' + translateX + 'px)');
+                } else if (scrollType === 'vertical') {
+                    const translateY = -maxScroll * clampedProgress * scrollSpeed * directionFactor;
+                    \$container.css('transform', 'translateY(' + translateY + 'px)');
+                } else if (scrollType === 'parallax') {
+                    const translateY = -100 * clampedProgress * scrollSpeed * directionFactor;
+                    \$container.css('transform', 'translateY(' + translateY + 'px)');
+                }
+            } else if (rect.bottom < 0) {
+                if (scrollType === 'horizontal') {
+                    \$container.css('transform', 'translateX(' + (-maxScroll) + 'px)');
+                } else if (scrollType === 'vertical' || scrollType === 'parallax') {
+                    \$container.css('transform', 'translateY(' + (-maxScroll) + 'px)');
+                }
+            } else {
+                \$container.css('transform', originalTransform);
+            }
+        }
+
+        $(window).on('scroll', handleScroll);
+        $(window).on('resize', function() {
+            setTimeout(function() {
+                handleScroll();
+            }, 100);
+        });
+
+        setTimeout(handleScroll, 100);
+    };
+    
+})(jQuery);
+JS;
+        file_put_contents($js_file, $js_content);
+    }
+}
+register_activation_hook(__FILE__, 'synchronized_scroll_extension_activate');

@@ -1,122 +1,214 @@
+/**
+ * Advanced Horizontal Scroll for Elementor
+ * This script provides smooth horizontal scrolling functionality
+ * that can be applied to any Elementor container
+ */
 (function($) {
     'use strict';
-    
+
+    const initializedContainers = new Set();
+
     $(document).ready(function() {
         initAllScrollContainers();
+
+        if (typeof elementorFrontend !== 'undefined') {
+            elementorFrontend.hooks.addAction('frontend/element_ready/section', function($element) {
+                if ($element.hasClass('sync-scroll-yes')) {
+                    initScrollContainer($element);
+                }
+            });
+            
+            elementorFrontend.hooks.addAction('frontend/element_ready/container', function($element) {
+                if ($element.hasClass('sync-scroll-yes')) {
+                    initScrollContainer($element);
+                }
+            });
+        }
     });
 
-    // Funzione per inizializzare tutti i container
     function initAllScrollContainers() {
-        $('.sync-scroll-container').each(function() {
-            initSynchronizedScroll($(this));
+        $('.sync-scroll-yes').each(function() {
+            initScrollContainer($(this));
         });
     }
 
-    // Funzione principale per inizializzare lo scorrimento sincronizzato
-    function initSynchronizedScroll($container) {
-        if ($container.length === 0) return;
-        
-        console.log('Initializing synchronized scroll for container:', $container.attr('id'));
-        
-        const $verticalContent = $container.find('.sync-vertical-content');
-        const $horizontalContent = $container.find('.sync-horizontal-content');
-        
-        if ($verticalContent.length === 0 || $horizontalContent.length === 0) {
-            console.error('Vertical or horizontal content not found');
+    function initScrollContainer($container) {
+        const containerId = $container.attr('id') || 'sync-scroll-' + Math.random().toString(36).substr(2, 9);
+
+        if (initializedContainers.has(containerId)) {
             return;
         }
 
-        // Ottieni le direzioni e la velocità dai data attributes
-        const vDirection = $container.data('v-direction') || 'down';
-        const hDirection = $container.data('h-direction') || 'right';
-        const scrollSpeed = parseFloat($container.data('scroll-speed')) || 1.0;
-
-        const vFactor = vDirection === 'up' ? -1 : 1;
-        const hFactor = hDirection === 'left' ? -1 : 1;
-
-        // Aspetta che le immagini siano caricate per calcolare correttamente le altezze
-        $container.imagesLoaded().then(function() {
-            calculateAndSetupScroll();
-        });
-
-        // Esegui il calcolo anche direttamente in caso non ci siano immagini
-        calculateAndSetupScroll();
-
-        // Funzione per calcolare dimensioni e configurare lo scorrimento
-        function calculateAndSetupScroll() {
-            // Calcola altezze e larghezze
-            const verticalScrollHeight = $verticalContent.outerHeight() - $verticalContent.parent().outerHeight();
-            const horizontalScrollWidth = $horizontalContent.outerWidth() - $horizontalContent.parent().outerWidth();
-            const totalScrollHeight = $container[0].scrollHeight - $container.outerHeight();
-
-            console.log('Vertical scroll height:', verticalScrollHeight);
-            console.log('Horizontal scroll width:', horizontalScrollWidth);
-            console.log('Total scroll height:', totalScrollHeight);
-
-            // Verifica se ci sono dimensioni sufficienti per lo scorrimento
-            if (verticalScrollHeight <= 0 || horizontalScrollWidth <= 0 || totalScrollHeight <= 0) {
-                console.warn('Not enough content for scrolling in container:', $container.attr('id'));
-                return;
-            }
-
-            // Imposta l'event handler per lo scorrimento
-            $container.on('scroll', function() {
-                const scrollPos = $container.scrollTop();
-                const scrollPercentage = scrollPos / totalScrollHeight;
-                
-                // Applica la trasformazione verticale
-                if (vDirection === 'up') {
-                    $verticalContent.css('transform', `translateY(${vFactor * scrollPercentage * scrollSpeed * verticalScrollHeight}px)`);
-                } else {
-                    $verticalContent.css('transform', `translateY(-${scrollPercentage * scrollSpeed * verticalScrollHeight}px)`);
-                }
-                
-                // Applica la trasformazione orizzontale
-                if (hDirection === 'left') {
-                    $horizontalContent.css('transform', `translateX(${hFactor * scrollPercentage * scrollSpeed * horizontalScrollWidth}px)`);
-                } else {
-                    $horizontalContent.css('transform', `translateX(-${scrollPercentage * scrollSpeed * horizontalScrollWidth}px)`);
-                }
-            });
-
-            // Trigger iniziale per impostare la posizione
-            $container.trigger('scroll');
+        if (!$container.attr('id')) {
+            $container.attr('id', containerId);
         }
+
+        const settings = {
+            type: $container.data('sync-scroll-type') || 'horizontal',
+            direction: $container.data('sync-scroll-direction') || 'normal',
+            speed: parseFloat($container.data('sync-scroll-speed') || 1),
+            sticky: $container.hasClass('sync-scroll-sticky-yes'),
+            overflow: $container.data('sync-scroll-overflow') || 'hidden'
+        };
         
-        // Ricalcola tutto al ridimensionamento della finestra
-        $(window).on('resize', function() {
-            setTimeout(calculateAndSetupScroll, 300);
-        });
+        console.log('Initializing scroll container:', containerId, settings);
+
+        $container.addClass('sync-scroll-container-parent');
+
+        const $contentContainer = $container.find('> .elementor-container, > .e-con-inner').first();
+        
+        if ($contentContainer.length === 0) {
+            console.error('Content container not found for', containerId);
+            return;
+        }
+
+        $contentContainer.addClass('sync-scroll-container');
+
+        if (settings.type === 'horizontal') {
+            setupHorizontalScroll($container, $contentContainer, settings);
+        } else if (settings.type === 'vertical') {
+            setupVerticalScroll($container, $contentContainer, settings);
+        } else if (settings.type === 'parallax') {
+            setupParallaxScroll($container, $contentContainer, settings);
+        }
+        initializedContainers.add(containerId);
     }
 
-    // Funzione da esporre globalmente per Elementor
-    window.initSynchronizedScroll = initSynchronizedScroll;
-    window.initAllScrollContainers = initAllScrollContainers;
-    
-    // Polyfill per imagesLoaded se non è disponibile
-    $.fn.imagesLoaded = function() {
-        const $this = this;
-        const $images = $this.find('img');
-        
-        if ($images.length === 0) {
-            return $.Deferred().resolve().promise();
-        }
-        
-        const deferred = $.Deferred();
-        let loaded = 0;
-        
-        $images.each(function() {
-            const img = new Image();
-            img.onload = img.onerror = function() {
-                loaded++;
-                if (loaded === $images.length) {
-                    deferred.resolve();
-                }
-            };
-            img.src = this.src;
+    function setupHorizontalScroll($container, $contentContainer, settings) {
+        $container.css({
+            'overflow-x': settings.overflow,
+            'position': settings.sticky ? 'sticky' : 'relative',
+            'top': settings.sticky ? '0' : 'auto',
         });
+
+        $contentContainer.css({
+            'display': 'flex',
+            'flex-wrap': 'nowrap',
+            'width': $container.data('sync-scroll-width') || '300%',
+            'will-change': 'transform',
+            'transition': `transform ${$container.data('sync-scroll-transition') || 0.2}s ease-out`
+        });
+
+        $contentContainer.children('.elementor-column, .elementor-widget, .e-con').css({
+            'flex-shrink': '0',
+            'width': 'auto'
+        });
+
+        const calculateDimensions = () => {
+            const containerWidth = $contentContainer.outerWidth();
+            const viewportWidth = window.innerWidth;
+            const totalScrollWidth = containerWidth - viewportWidth;
+            
+            return {
+                containerWidth,
+                viewportWidth,
+                totalScrollWidth
+            };
+        };
         
-        return deferred.promise();
+        let dimensions = calculateDimensions();
+        const directionFactor = settings.direction === 'reverse' ? 1 : -1;
+
+        const handleScroll = () => {
+            const rect = $container[0].getBoundingClientRect();
+            const windowHeight = window.innerHeight;
+
+            if (rect.top < windowHeight && rect.bottom > 0) {
+                const containerHeight = $container.outerHeight();
+                const scrollableHeight = containerHeight;
+                const scrollProgress = Math.min(1, Math.max(0, (windowHeight - rect.top) / scrollableHeight));
+
+                const translateX = directionFactor * scrollProgress * dimensions.totalScrollWidth * settings.speed;
+                $contentContainer.css('transform', `translateX(${translateX}px)`);
+            }
+        };
+
+        $(window).on('scroll.syncScroll' + $container.attr('id'), handleScroll);
+        $(window).on('resize.syncScroll' + $container.attr('id'), () => {
+            dimensions = calculateDimensions();
+            handleScroll();
+        });
+
+        setTimeout(handleScroll, 100);
+    }
+
+    function setupVerticalScroll($container, $contentContainer, settings) {
+        $container.css({
+            'overflow-y': settings.overflow,
+            'position': settings.sticky ? 'sticky' : 'relative',
+            'top': settings.sticky ? '0' : 'auto',
+        });
+
+        $contentContainer.css({
+            'height': $container.data('sync-scroll-height') || '200%',
+            'will-change': 'transform',
+            'transition': `transform ${$container.data('sync-scroll-transition') || 0.2}s ease-out`
+        });
+
+        const calculateDimensions = () => {
+            const containerHeight = $contentContainer.outerHeight();
+            const viewportHeight = $container.outerHeight();
+            const totalScrollHeight = containerHeight - viewportHeight;
+            
+            return {
+                containerHeight,
+                viewportHeight,
+                totalScrollHeight
+            };
+        };
+        
+        let dimensions = calculateDimensions();
+        const directionFactor = settings.direction === 'reverse' ? 1 : -1;
+
+        const handleScroll = () => {
+            const rect = $container[0].getBoundingClientRect();
+            const windowHeight = window.innerHeight;
+
+            if (rect.top < windowHeight && rect.bottom > 0) {
+                const scrollableHeight = $container.outerHeight();
+                const scrollProgress = Math.min(1, Math.max(0, (windowHeight - rect.top) / scrollableHeight));
+                const translateY = directionFactor * scrollProgress * dimensions.totalScrollHeight * settings.speed;
+                $contentContainer.css('transform', `translateY(${translateY}px)`);
+            }
+        };
+
+        $(window).on('scroll.syncScroll' + $container.attr('id'), handleScroll);
+
+        $(window).on('resize.syncScroll' + $container.attr('id'), () => {
+            dimensions = calculateDimensions();
+            handleScroll();
+        });
+        setTimeout(handleScroll, 100);
+    }
+
+    function setupParallaxScroll($container, $contentContainer, settings) {
+        const directionFactor = settings.direction === 'reverse' ? 1 : -1;
+
+        const handleScroll = () => {
+            const rect = $container[0].getBoundingClientRect();
+            const windowHeight = window.innerHeight;
+
+            if (rect.top < windowHeight && rect.bottom > 0) {
+
+                const viewportCenter = windowHeight / 2;
+                const elementCenter = rect.top + ($container.outerHeight() / 2);
+                const distance = viewportCenter - elementCenter;
+                const maxDistance = windowHeight + $container.outerHeight();
+                const scrollProgress = distance / maxDistance * 2;
+                const translateY = directionFactor * scrollProgress * 100 * settings.speed; // 100px is the default parallax amount
+                $contentContainer.css('transform', `translateY(${translateY}px)`);
+            }
+        };
+
+        $(window).on('scroll.syncScroll' + $container.attr('id'), handleScroll);
+        $(window).on('resize.syncScroll' + $container.attr('id'), handleScroll);
+
+        setTimeout(handleScroll, 100);
+    }
+
+    window.syncScroll = {
+        init: initScrollContainer,
+        initAll: initAllScrollContainers
     };
     
 })(jQuery);
