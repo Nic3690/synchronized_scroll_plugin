@@ -1,15 +1,4 @@
 <?php
-/**
- * Plugin Name: Synchronized Scroll for Elementor
- * Plugin URI: https://example.com/synchronized-scroll
- * Description: Add synchronized scroll behaviors to any Elementor container
- * Version: 1.0.0
- * Author: Your Name
- * Author URI: https://example.com
- * Text Domain: sync-scroll-elementor
- */
-
-
 if (!defined('ABSPATH')) {
     exit;
 }
@@ -18,10 +7,9 @@ define('SYNC_SCROLL_VERSION', '1.0.0');
 define('SYNC_SCROLL_URL', plugin_dir_url(__FILE__));
 define('SYNC_SCROLL_PATH', plugin_dir_path(__FILE__));
 
-
 final class Synchronized_Scroll_Extension {
-
     private static $_instance = null;
+    
     public static function instance() {
         if (is_null(self::$_instance)) {
             self::$_instance = new self();
@@ -42,13 +30,11 @@ final class Synchronized_Scroll_Extension {
         add_action('wp_enqueue_scripts', [$this, 'register_scripts']);
         add_action('elementor/element/section/section_layout/after_section_end', [$this, 'register_controls'], 10, 2);
         add_action('elementor/element/container/section_layout/after_section_end', [$this, 'register_controls'], 10, 2);
-
+        
         add_action('elementor/frontend/section/before_render', [$this, 'before_render']);
         add_action('elementor/frontend/container/before_render', [$this, 'before_render']);
         add_action('elementor/frontend/section/after_render', [$this, 'after_render']);
         add_action('elementor/frontend/container/after_render', [$this, 'after_render']);
-
-        add_action('wp_footer', [$this, 'add_custom_script']);
     }
 
     public function admin_notice_missing_elementor() {
@@ -81,8 +67,16 @@ final class Synchronized_Scroll_Extension {
             true
         );
         
+        wp_register_script(
+            'page-sync-scroll-js',
+            SYNC_SCROLL_URL . 'assets/js/page-sync-scroll.js',
+            [],
+            SYNC_SCROLL_VERSION,
+            true
+        );
+        
         wp_enqueue_style('sync-scroll-elementor-css');
-        wp_enqueue_script('sync-scroll-elementor-js');
+        wp_enqueue_script('page-sync-scroll-js');
     }
 
     public function register_controls($element, $section_id) {
@@ -160,9 +154,6 @@ final class Synchronized_Scroll_Extension {
                 'condition' => [
                     'enable_sync_scroll' => 'yes',
                 ],
-                'selectors' => [
-                    '{{WRAPPER}}' => '--sync-scroll-speed: {{SIZE}};',
-                ],
             ]
         );
         
@@ -179,25 +170,6 @@ final class Synchronized_Scroll_Extension {
                     'enable_sync_scroll' => 'yes',
                 ],
                 'prefix_class' => 'sync-scroll-sticky-',
-            ]
-        );
-        
-        $element->add_control(
-            'sync_scroll_overflow',
-            [
-                'label' => __('Overflow', 'sync-scroll-elementor'),
-                'type' => \Elementor\Controls_Manager::SELECT,
-                'default' => 'hidden',
-                'options' => [
-                    'visible' => __('Visible', 'sync-scroll-elementor'),
-                    'hidden' => __('Hidden', 'sync-scroll-elementor'),
-                ],
-                'condition' => [
-                    'enable_sync_scroll' => 'yes',
-                ],
-                'selectors' => [
-                    '{{WRAPPER}}' => 'overflow-x: {{VALUE}} !important;',
-                ],
             ]
         );
         
@@ -262,7 +234,7 @@ final class Synchronized_Scroll_Extension {
                 ],
                 'default' => [
                     'unit' => '%',
-                    'size' => 200,
+                    'size' => 300,
                 ],
                 'condition' => [
                     'enable_sync_scroll' => 'yes',
@@ -284,13 +256,10 @@ final class Synchronized_Scroll_Extension {
                     ],
                 ],
                 'default' => [
-                    'size' => 0.2,
+                    'size' => 0.1,
                 ],
                 'condition' => [
                     'enable_sync_scroll' => 'yes',
-                ],
-                'selectors' => [
-                    '{{WRAPPER}} .elementor-container, {{WRAPPER}} .elementor-widget-wrap' => 'transition: transform {{SIZE}}s ease-out;',
                 ],
             ]
         );
@@ -298,36 +267,23 @@ final class Synchronized_Scroll_Extension {
         $element->end_controls_section();
     }
 
-
     public function before_render($element) {
         $settings = $element->get_settings_for_display();
         
         if ('yes' === $settings['enable_sync_scroll']) {
             $element_type = $element->get_type();
             $element_id = $element->get_id();
-
-            $element->add_render_attribute('_wrapper', 'class', 'sync-scroll-container-parent');
-            $element->add_render_attribute('_wrapper', 'id', 'sync-scroll-parent-' . $element_id);
             
-            if ($element_type === 'section') {
-                $element->add_render_attribute('_wrapper', 'data-sync-scroll-id', $element_id);
-                $element->add_render_attribute('_wrapper', 'data-sync-scroll-type', $settings['sync_scroll_type']);
-                $element->add_render_attribute('_wrapper', 'data-sync-scroll-direction', $settings['sync_scroll_direction']);
-                $element->add_render_attribute('_wrapper', 'data-sync-scroll-speed', $settings['sync_scroll_speed']['size']);
-                
-                if ('yes' === $settings['sync_scroll_sticky']) {
-                    $element->add_render_attribute('_wrapper', 'class', 'sync-scroll-sticky-section');
-                }
-
-                if ('horizontal' === $settings['sync_scroll_type']) {
-                    $width = isset($settings['sync_scroll_container_width']['size']) ? $settings['sync_scroll_container_width']['size'] : 200;
-                    $unit = isset($settings['sync_scroll_container_width']['unit']) ? $settings['sync_scroll_container_width']['unit'] : '%';
-                    $element->add_render_attribute('_wrapper', 'data-sync-scroll-width', $width . $unit);
-                }
+            $element->add_render_attribute('_wrapper', 'data-scroll-speed', $settings['sync_scroll_speed']['size']);
+            
+            if (isset($settings['sync_scroll_container_width']['size']) && isset($settings['sync_scroll_container_width']['unit'])) {
+                $width = $settings['sync_scroll_container_width']['size'] . $settings['sync_scroll_container_width']['unit'];
+                $element->add_render_attribute('_wrapper', 'data-scroll-width', $width);
             }
-
-            if ('horizontal' === $settings['sync_scroll_type']) {
-                echo '<div class="sync-scroll-overflow-wrapper">';
+            
+            if (isset($settings['sync_scroll_transition']['size'])) {
+                $transition = $settings['sync_scroll_transition']['size'];
+                $element->add_render_attribute('_wrapper', 'data-scroll-transition', $transition);
             }
         }
     }
@@ -336,30 +292,8 @@ final class Synchronized_Scroll_Extension {
         $settings = $element->get_settings_for_display();
         
         if ('yes' === $settings['enable_sync_scroll']) {
-            if ('horizontal' === $settings['sync_scroll_type']) {
-                echo '</div>';
-            }
-
-            $element_id = $element->get_id();
-            ?>
-            <script>
-                (function($) {
-                    $(document).ready(function() {
-                        if (typeof initSyncScroll === 'function') {
-                            initSyncScroll('#sync-scroll-parent-<?php echo esc_js($element_id); ?>');
-                        }
-                    });
-                })(jQuery);
-            </script>
-            <?php
+            // No additional code needed for page scrolling mode
         }
-    }
-
-    public function add_custom_script() {
-        ?>
-        <script>
-        </script>
-        <?php
     }
 }
 
@@ -369,155 +303,176 @@ function synchronized_scroll_extension_activate() {
     if (!file_exists(plugin_dir_path(__FILE__) . 'assets')) {
         mkdir(plugin_dir_path(__FILE__) . 'assets', 0755);
     }
-
+    
     if (!file_exists(plugin_dir_path(__FILE__) . 'assets/css')) {
         mkdir(plugin_dir_path(__FILE__) . 'assets/css', 0755);
     }
-
+    
     if (!file_exists(plugin_dir_path(__FILE__) . 'assets/js')) {
         mkdir(plugin_dir_path(__FILE__) . 'assets/js', 0755);
     }
-
+    
     $css_file = plugin_dir_path(__FILE__) . 'assets/css/sync-scroll.css';
     if (!file_exists($css_file)) {
-        $css_content = <<<CSS
-
-.sync-scroll-container-parent {
+        $css_content = '.sync-scroll-yes {
+    overflow: visible !important;
     position: relative;
-    overflow: hidden;
 }
 
-.sync-scroll-overflow-wrapper {
-    width: 100%;
-    height: 100%;
-    overflow: hidden;
-}
-
-.sync-scroll-type-horizontal .elementor-container,
-.sync-scroll-type-horizontal .elementor-widget-wrap {
-    will-change: transform;
-    transition: transform 0.2s ease-out;
-}
-
-.sync-scroll-type-vertical .elementor-container,
-.sync-scroll-type-vertical .elementor-widget-wrap {
-    will-change: transform;
-    transition: transform 0.2s ease-out;
-}
-
-.sync-scroll-type-parallax .elementor-container,
-.sync-scroll-type-parallax .elementor-widget-wrap {
-    will-change: transform;
-    transition: transform 0.2s ease-out;
+.sync-scroll-yes > .elementor-container,
+.sync-scroll-yes > .e-con-inner {
+    overflow: hidden !important;
 }
 
 .sync-scroll-sticky-yes {
-    position: sticky;
+    position: sticky !important;
     top: 0;
+    z-index: 10;
+}
+
+.sync-scroll-type-horizontal > .elementor-container,
+.sync-scroll-type-horizontal > .e-con-inner {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    width: 300% !important;
+}
+
+.sync-scroll-type-horizontal > .elementor-container > .elementor-column,
+.sync-scroll-type-horizontal > .elementor-container > .elementor-widget,
+.sync-scroll-type-horizontal > .e-con-inner > .e-con,
+.sync-scroll-type-horizontal > .e-con-inner > .elementor-widget {
+    flex-shrink: 0 !important;
+    width: auto !important;
 }
 
 @media (max-width: 767px) {
-    .sync-scroll-container-parent {
-        overflow-x: auto;
+    .sync-scroll-yes {
+        overflow-x: auto !important;
         -webkit-overflow-scrolling: touch;
     }
-}
-CSS;
+}';
         file_put_contents($css_file, $css_content);
     }
-
-    $js_file = plugin_dir_path(__FILE__) . 'assets/js/sync-scroll.js';
+    
+    $js_file = plugin_dir_path(__FILE__) . 'assets/js/page-sync-scroll.js';
     if (!file_exists($js_file)) {
-        $js_content = <<<JS
-(function($) {
-    'use strict';
-
-    $(document).ready(function() {
-        $('.sync-scroll-container-parent').each(function() {
-            initSyncScroll($(this));
-        });
-    });
-
-    window.initSyncScroll = function(selector) {
-        const \$parent = $(selector);
-        if (\$parent.length === 0) return;
+        $js_content = 'document.addEventListener(\'DOMContentLoaded\', function() {
+    const scrollContainers = [];
+    
+    initScrollContainers();
+    
+    function initScrollContainers() {
+        const containers = document.querySelectorAll(\'.sync-scroll-yes\');
         
-        const elementId = \$parent.data('sync-scroll-id');
-        const scrollType = \$parent.data('sync-scroll-type') || 'horizontal';
-        const scrollDirection = \$parent.data('sync-scroll-direction') || 'normal';
-        const scrollSpeed = parseFloat(\$parent.data('sync-scroll-speed')) || 1.0;
-        const contentWidth = \$parent.data('sync-scroll-width');
-        
-        console.log('Initializing sync scroll for', elementId, 'with type', scrollType);
-
-        const \$container = \$parent.find('.elementor-container, .elementor-widget-wrap').first();
-        if (\$container.length === 0) {
-            console.error('Container element not found in', elementId);
+        if (containers.length === 0) {
             return;
         }
-
-        if (scrollType === 'horizontal' && contentWidth) {
-            \$container.css('width', contentWidth);
-            \$container.css('display', 'flex');
-            \$container.css('flex-wrap', 'nowrap');
-
-            \$container.find('.elementor-column, .elementor-widget').css({
-                'flex-shrink': '0',
-                'width': 'auto'
-            });
-        }
-
-        const originalTransform = \$container.css('transform');
-
-        const parentHeight = \$parent.outerHeight();
-        const containerWidth = \$container.outerWidth();
-        const viewportWidth = window.innerWidth;
-        const maxScroll = containerWidth - viewportWidth;
-
-        const directionFactor = scrollDirection === 'reverse' ? -1 : 1;
-
-        function handleScroll() {
-            const rect = \$parent[0].getBoundingClientRect();
-            const viewportHeight = window.innerHeight;
-
-            if (rect.top < viewportHeight && rect.bottom > 0) {
-                const totalScrollableDistance = parentHeight + viewportHeight;
-                const scrollProgress = (viewportHeight - rect.top) / totalScrollableDistance;
-                const clampedProgress = Math.max(0, Math.min(scrollProgress, 1));
-
-                if (scrollType === 'horizontal') {
-                    const translateX = -maxScroll * clampedProgress * scrollSpeed * directionFactor;
-                    \$container.css('transform', 'translateX(' + translateX + 'px)');
-                } else if (scrollType === 'vertical') {
-                    const translateY = -maxScroll * clampedProgress * scrollSpeed * directionFactor;
-                    \$container.css('transform', 'translateY(' + translateY + 'px)');
-                } else if (scrollType === 'parallax') {
-                    const translateY = -100 * clampedProgress * scrollSpeed * directionFactor;
-                    \$container.css('transform', 'translateY(' + translateY + 'px)');
-                }
-            } else if (rect.bottom < 0) {
-                if (scrollType === 'horizontal') {
-                    \$container.css('transform', 'translateX(' + (-maxScroll) + 'px)');
-                } else if (scrollType === 'vertical' || scrollType === 'parallax') {
-                    \$container.css('transform', 'translateY(' + (-maxScroll) + 'px)');
-                }
-            } else {
-                \$container.css('transform', originalTransform);
+        
+        containers.forEach(function(container) {
+            const scrollType = container.classList.contains(\'sync-scroll-type-vertical\') ? \'vertical\' : 
+                               container.classList.contains(\'sync-scroll-type-parallax\') ? \'parallax\' : \'horizontal\';
+            
+            const directionReverse = container.classList.contains(\'sync-scroll-direction-reverse\');
+            const scrollSpeed = parseFloat(container.dataset.scrollSpeed || container.getAttribute(\'data-sync-scroll-speed\') || 1);
+            
+            const innerContainer = container.querySelector(\'.elementor-container, .e-con-inner\');
+            
+            if (!innerContainer) {
+                return;
             }
-        }
-
-        $(window).on('scroll', handleScroll);
-        $(window).on('resize', function() {
-            setTimeout(function() {
-                handleScroll();
-            }, 100);
+            
+            setupContainerStyles(container, innerContainer, scrollType);
+            
+            scrollContainers.push({
+                container: container,
+                innerContainer: innerContainer,
+                type: scrollType,
+                reverse: directionReverse,
+                speed: scrollSpeed,
+                scrollWidth: 0,
+                scrollHeight: 0
+            });
         });
-
-        setTimeout(handleScroll, 100);
-    };
+        
+        if (scrollContainers.length > 0) {
+            window.addEventListener(\'scroll\', handlePageScroll);
+            window.addEventListener(\'resize\', updateContainerDimensions);
+            updateContainerDimensions();
+            handlePageScroll();
+        }
+    }
     
-})(jQuery);
-JS;
+    function updateContainerDimensions() {
+        scrollContainers.forEach(function(item) {
+            if (item.type === \'horizontal\') {
+                const containerWidth = item.innerContainer.scrollWidth;
+                const viewportWidth = window.innerWidth;
+                item.scrollWidth = containerWidth - viewportWidth;
+            } else if (item.type === \'vertical\') {
+                const containerHeight = item.innerContainer.scrollHeight;
+                const viewportHeight = item.container.offsetHeight;
+                item.scrollHeight = containerHeight - viewportHeight;
+            }
+        });
+    }
+    
+    function setupContainerStyles(container, innerContainer, scrollType) {
+        container.style.overflow = \'visible\';
+        
+        if (scrollType === \'horizontal\') {
+            innerContainer.style.display = \'flex\';
+            innerContainer.style.flexWrap = \'nowrap\';
+            innerContainer.style.width = \'300%\';
+            innerContainer.style.willChange = \'transform\';
+            innerContainer.style.transition = \'transform 0.1s ease-out\';
+            
+            Array.from(innerContainer.children).forEach(function(child) {
+                child.style.flexShrink = \'0\';
+                child.style.width = \'auto\';
+            });
+        } else if (scrollType === \'vertical\') {
+            innerContainer.style.height = \'200%\';
+            innerContainer.style.willChange = \'transform\';
+            innerContainer.style.transition = \'transform 0.1s ease-out\';
+        } else if (scrollType === \'parallax\') {
+            innerContainer.style.willChange = \'transform\';
+            innerContainer.style.transition = \'transform 0.1s ease-out\';
+        }
+    }
+    
+    function handlePageScroll() {
+        scrollContainers.forEach(function(item) {
+            const rect = item.container.getBoundingClientRect();
+            const windowHeight = window.innerHeight;
+            
+            if (rect.top < windowHeight && rect.bottom > 0) {
+                const containerHeight = item.container.offsetHeight;
+                const scrollProgress = Math.min(1, Math.max(0, 
+                    (windowHeight - rect.top) / (containerHeight + windowHeight)
+                ));
+                
+                const directionFactor = item.reverse ? 1 : -1;
+                
+                if (item.type === \'horizontal\') {
+                    const translateX = directionFactor * scrollProgress * item.scrollWidth * item.speed;
+                    item.innerContainer.style.transform = `translateX(${translateX}px)`;
+                } else if (item.type === \'vertical\') {
+                    const translateY = directionFactor * scrollProgress * item.scrollHeight * item.speed;
+                    item.innerContainer.style.transform = `translateY(${translateY}px)`;
+                } else if (item.type === \'parallax\') {
+                    const viewportCenter = windowHeight / 2;
+                    const elementCenter = rect.top + (containerHeight / 2);
+                    const distance = viewportCenter - elementCenter;
+                    const maxDistance = windowHeight + containerHeight;
+                    const parallaxProgress = distance / maxDistance * 2;
+                    
+                    const translateY = directionFactor * parallaxProgress * 100 * item.speed;
+                    item.innerContainer.style.transform = `translateY(${translateY}px)`;
+                }
+            }
+        });
+    }
+});';
         file_put_contents($js_file, $js_content);
     }
 }

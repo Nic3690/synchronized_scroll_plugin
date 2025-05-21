@@ -1,25 +1,11 @@
-/**
- * Synchronized Scroll CSS
- * Styling for the Elementor synchronized scroll extension
- */
-
 .sync-scroll-yes {
-    --sync-scroll-speed: 1;
-    --sync-scroll-transition: 0.2s;
+    overflow: visible !important;
     position: relative;
 }
 
-.sync-scroll-yes.sync-scroll-type-horizontal {
-    overflow-x: hidden !important;
-}
-
-.sync-scroll-yes.sync-scroll-type-vertical {
-    overflow-y: hidden !important;
-}
-
-.sync-scroll-container-parent {
-    position: relative;
-    will-change: transform;
+.sync-scroll-yes > .elementor-container,
+.sync-scroll-yes > .e-con-inner {
+    overflow: hidden !important;
 }
 
 .sync-scroll-sticky-yes {
@@ -28,68 +14,24 @@
     z-index: 10;
 }
 
-.sync-scroll-container {
-    will-change: transform;
-    transition: transform var(--sync-scroll-transition, 0.2s) ease-out;
+.sync-scroll-type-horizontal > .elementor-container,
+.sync-scroll-type-horizontal > .e-con-inner {
+    display: flex !important;
+    flex-wrap: nowrap !important;
+    width: 300% !important;
 }
 
-.sync-scroll-type-horizontal .sync-scroll-container {
-    display: flex;
-    flex-wrap: nowrap;
-}
-
-.sync-scroll-type-horizontal .sync-scroll-container > .elementor-column,
-.sync-scroll-type-horizontal .sync-scroll-container > .elementor-widget,
-.sync-scroll-type-horizontal .sync-scroll-container > .e-con {
-    flex-shrink: 0;
-    width: auto;
-}
-
-.sync-scroll-type-vertical .sync-scroll-container {
-    height: 200%;
-}
-
-.sync-scroll-type-parallax .elementor-container,
-.sync-scroll-type-parallax .e-con-inner {
-    transform-style: preserve-3d;
-    backface-visibility: hidden;
-}
-
-.sync-scroll-direction-reverse .sync-scroll-container {
-    flex-direction: row-reverse;
-}
-
-.sync-scroll-fullheight {
-    height: 100vh !important;
-}
-
-.sync-scroll-panel {
-    will-change: transform;
-    transition: background-size 0.2s ease;
-}
-
-.sync-scroll-panel:hover {
-    background-size: 130% !important;
-    transition: 0.2s;
+.sync-scroll-type-horizontal > .elementor-container > .elementor-column,
+.sync-scroll-type-horizontal > .elementor-container > .elementor-widget,
+.sync-scroll-type-horizontal > .e-con-inner > .e-con,
+.sync-scroll-type-horizontal > .e-con-inner > .elementor-widget {
+    flex-shrink: 0 !important;
+    width: auto !important;
 }
 
 @media (max-width: 767px) {
-    .sync-scroll-yes.sync-scroll-type-horizontal {
+    .sync-scroll-yes {
         overflow-x: auto !important;
         -webkit-overflow-scrolling: touch;
-    }
-    
-    .sync-scroll-yes.sync-scroll-type-horizontal .sync-scroll-container {
-        transform: none !important;
-    }
-    
-    .sync-scroll-yes.sync-scroll-type-vertical {
-        overflow-y: auto !important;
-        -webkit-overflow-scrolling: touch;
-    }
-    
-    .sync-scroll-yes.sync-scroll-type-vertical .sync-scroll-container {
-        transform: none !important;
-        height: auto !important;
     }
 }
